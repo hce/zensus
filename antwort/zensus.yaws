@@ -1,0 +1,120 @@
+<erl>
+
+out(A) ->
+    {ok, C} = pgsql:connect("127.0.0.1",
+			    "zensus",
+			    "oocee6Iekahx8r",
+			    [{database, "zensus"},
+			     {schema, "public"}]),
+    {{_, Subnet, _, _}, _Port} = A#arg.client_ip_port,
+    [{header, {content_type, "text/html; encoding=utf-8"}},     {html, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE html>\n<html lang='en'><head>    <title>Zensus</title><body><form>" ++
+      do_render(C, Subnet) ++ "<br /><input type='submit' value='generate' onclick='javascript:doit(); return false' /><form /></body></html>"}].
+
+do_distinction(C, Rows, Subnet) ->
+    {ok, _Cols, Rows1} = pgsql:squery(C, "SELECT qid FROM questions"),
+    Dict = lists:foldl(
+	     fun({Qid}, D) ->
+		     dict:store(Qid, try dict:fetch(Qid, D) of
+					 Value -> Value
+				     catch _:_ -> 0 end + 1, D)
+	     end, dict:new(), Rows1),
+    {_, _, Res} = lists:foldl(
+		    fun({Qid,_,_,_}=Row, {Count1, Lastqid, L}) ->
+			    Count = if Lastqid =:= Qid -> Count1;
+				       true -> 0 end,
+			    {Count + 1, Qid, L ++
+			     case Subnet rem dict:fetch(Qid, Dict) of
+				 Count ->
+				     [Row];
+				 _Else ->
+				     []
+			     end}
+		    end, {0, -1, []}, Rows),
+    Res.
+
+do_render(C, Subnet) ->    
+    {ok, Columns, Rows1} = pgsql:squery(C, "SELECT qid,question,question_type,data FROM questions ORDER BY qid::integer ASC"),
+    Rows = do_distinction(C, Rows1, Subnet),
+    {JS, HTML} = lists:foldl(
+		   fun(E, {JS, HTML}) ->
+			   {JS1, HTML1} = render_question(E),
+			   {JS ++ JS1,
+			    HTML ++ HTML1}
+		   end, {[], []}, Rows),
+    "<script type='text/javascript'><!--\nfunction doit() {" ++ JS ++
+	"text=" ++ genalltext(length(Rows)) ++ ";\ndocument.write(' <link rel=\\'stylesheet\\' type=\\'text/css\\' href=\\'/zensus.css\\' /><p>' + text + '</p>');return false;\n}\n--></script>" ++ HTML.
+
+genalltext(C) ->
+    L = ["text" ++ integer_to_list(I) || I <- count(C)],
+    string:join(L, " + \"</p><p>\" + ").
+
+render_question({Qid1, Question, Qtype, Data}=E) ->
+    Qid = list_to_integer(binary_to_list(Qid1)),
+    Data1 = binary_to_term(base64:decode(Data)),
+    Foo = list_to_binary(lists:flatten(io_lib:format("~p", [Data1]))),
+    << Question/binary,
+     Foo/binary >>,
+    
+    Qtype1 = case Qtype of
+		 <<"qtype_text">> -> <<"text">>;
+		 <<"qtype_predef">> -> <<"predef">>;
+		 Else -> Else
+	     end,
+
+    case Qtype1 of
+	<<"text">> ->
+	    [Res|Qs] = Data1,
+	    {gen_text_js(Qid, Res, length(Qs)),
+	     gen_text_html(Qid, Qs)};
+	<<"predef">> ->
+	    {"text" ++ integer_to_list(Qid) ++ "='';" ++ gen_predef_js(Qid, Data1),
+	     gen_predef_html(Qid, Data1) ++ "<br />"}
+    end.
+
+gen_text_js(Qid, Res, Len) ->
+    Varname = "text" ++ integer_to_list(Qid),
+    Varname ++ " = " ++ js_mk_txt(Res) ++ ";\n" ++
+	lists:foldl(fun(E, Acc) ->
+			    Acc ++ Varname ++ " = " ++ Varname ++ ".replace('~" ++
+				integer_to_list(E) ++ "s', document.getElementById('q" ++
+				integer_to_list(Qid) ++ "a" ++ integer_to_list(E) ++ "').value);\n"
+		    end, [], count(Len)).
+
+gen_text_html(Qid, Qs) ->
+    lists:foldl(fun({I, T}, Acc) ->
+			Acc ++ yaws_api:htmlize(T) ++ ": <input type='text' id='q" ++
+			    integer_to_list(Qid) ++ "a" ++ integer_to_list(I) ++ "' /><br />"
+		end, [], enumerate(Qs)).
+    
+gen_predef_js(Qid, Qs) ->
+    Varname = "text" ++ integer_to_list(Qid),
+    lists:foldl(fun({E, {_, T}}, Acc) ->
+			Acc ++ "if (document.getElementById('q" ++
+			    integer_to_list(Qid) ++ "a" ++ integer_to_list(E) ++
+			    "').checked) " ++ Varname ++ " += " ++ js_mk_txt(T) ++ ";\n"
+		end, [], enumerate(Qs)).
+
+gen_predef_html(Qid, Qs) ->
+    lists:foldl(fun({E, {T, _A}}, Acc) ->
+			Acc ++ "<input type='checkbox' id='q" ++ integer_to_list(Qid) ++
+			    "a" ++ integer_to_list(E) ++ "' />" ++ yaws_api:htmlize(T)
+		end, [], enumerate(Qs)).
+
+enumerate(E) ->
+    enumerate(E, 1).
+enumerate([E|R], C) ->
+    [{C, E}] ++ enumerate(R, C + 1);
+enumerate([], _C) ->
+    [].
+
+count(N) when is_integer(N), N > 0 ->
+    count(N - 1) ++ [N];
+count(0) ->
+    [].
+			    
+	
+
+js_mk_txt(Txt) -> %% TODO.
+    "'" ++ Txt ++ "'".
+
+</erl>
