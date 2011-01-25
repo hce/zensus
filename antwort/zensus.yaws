@@ -7,8 +7,12 @@ out(A) ->
 			    [{database, "zensus"},
 			     {schema, "public"}]),
     {{_, Subnet, _, _}, _Port} = A#arg.client_ip_port,
-    [{header, {content_type, "text/html; encoding=utf-8"}},     {html, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE html>\n<html lang='en'><head>    <title>Zensus</title><body><form>" ++
-      do_render(C, Subnet) ++ "<br /><input type='submit' value='generate' onclick='javascript:doit(); return false' /><form /></body></html>"}].
+    [{header, {content_type, "text/html; encoding=utf-8"}},
+     {html, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE html>\n"
+      "<html lang='en'><head>    <title>Zensus</title><body><form>" ++
+      do_render(C, Subnet) ++
+      "<br /><input type='submit' value='generate' "
+      "onclick='javascript:doit(); return false' /><form /></body></html>"}].
 
 do_distinction(C, Rows, Subnet) ->
     {ok, _Cols, Rows1} = pgsql:squery(C, "SELECT qid FROM questions"),
@@ -42,7 +46,9 @@ do_render(C, Subnet) ->
 			    HTML ++ HTML1}
 		   end, {[], []}, Rows),
     "<script type='text/javascript'><!--\nfunction doit() {" ++ JS ++
-	"text=" ++ genalltext(length(Rows)) ++ ";\ndocument.write(' <link rel=\\'stylesheet\\' type=\\'text/css\\' href=\\'/zensus.css\\' /><p>' + text + '</p>');return false;\n}\n--></script>" ++ HTML.
+	"text=" ++ genalltext(length(Rows)) ++ ";\ndocument.write(' <link rel=\\'stylesheet\\' "
+	"type=\\'text/css\\' href=\\'/zensus.css\\' /><p>' + text + '</p>');return false;\n}\n-"
+	"-></script>" ++ HTML.
 
 genalltext(C) ->
     L = ["text" ++ integer_to_list(I) || I <- count(C)],
