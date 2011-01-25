@@ -46,12 +46,12 @@ do_render(C, Subnet) ->
 			    HTML ++ HTML1}
 		   end, {[], []}, Rows),
     "<script type='text/javascript'><!--\nfunction doit() {" ++ JS ++
-	"text=" ++ genalltext(length(Rows)) ++ ";\ndocument.write(' <link rel=\\'stylesheet\\' "
+	"text=" ++ genalltext(Rows) ++ ";\ndocument.write(' <link rel=\\'stylesheet\\' "
 	"type=\\'text/css\\' href=\\'/zensus.css\\' /><p>' + text + '</p>');return false;\n}\n-"
 	"-></script>" ++ HTML.
 
-genalltext(C) ->
-    L = ["text" ++ integer_to_list(I) || I <- count(C)],
+genalltext(Rows) ->
+    L = ["text" ++ binary_to_list(Qid) || {Qid,_,_,_} <- Rows],
     string:join(L, " + \"</p><p>\" + ").
 
 render_question({Qid1, Question, Qtype, Data}=E) ->
