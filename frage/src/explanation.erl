@@ -19,7 +19,7 @@ inner_body() ->
 	     end),
 				
     [
-     #h1 { text="fragebogen.qapla.eu - Erläuterungen" },
+     #h1 { text="generator.zensus11.de - Erläuterungen" },
      #flash{},
      #p{},
      #panel { style="float: right",

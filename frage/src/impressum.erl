@@ -14,15 +14,10 @@ body() ->
 
 inner_body() -> 
     [
-     #h1 { text="fragebogen.qapla.eu - Impressum" },
+     #h1 { text="generator.zensus11.de - Impressum" },
      #flash{},
      #p{},
      "Schön, daß Sie sich für das Impressum interessieren. "
-     "Diese Website wird gehostet von:",
-     #label{text="Hans-Christian Esperer"},
-     #label{text="Alicestraße 27"},
-     #label{text="64372 Ober-Ramstadt"},
-     #label{text="E-Mail-Adresse: hc@qapla.eu"},
-     #label{text="Telefon: 04040180196801"},
+     "Dies ist ein Angebot von <a href=\"http://zensus11.de/impressum/\">zensus11.de</a>",
      #p{}
     ].

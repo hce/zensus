@@ -26,39 +26,40 @@ do_qstat(C) ->
 do_qlist(C) ->
     Dict = do_qstat(C),
     Keys = dict:fetch_keys(Dict),
-    Minimum1 = lists:foldl(
-		 fun(Qid, Current) ->
-			 Qid_num = dict:fetch(Qid, Dict),
-			 if Qid_num < Current ->
-				 Qid_num;
-			    true ->
-				 Current
-			 end
-		 end, 65536, Keys),
+    {Minimum1, Count} = lists:foldl(
+			  fun(Qid, {Current, Count}) ->
+				  Qid_num = dict:fetch(Qid, Dict),
+				  if Qid_num < Current ->
+					  {Qid_num, Count + Qid_num};
+				     true ->
+					  {Current, Count + Qid_num}
+				  end
+			  end, {65536, 0}, Keys),
     Minimum = case length(Keys) of
-		  46 -> Minimum1;
+		  45 -> Minimum1;
 		  _Else -> 0
 	      end,
-	
+    
     if
 	Minimum =:= 0 ->
-	    lists:subtract([list_to_binary(integer_to_list(E)) ||
-			       E <- [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-				     21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
-				     41, 42, 43, 44, 45, 46]], Keys);
+	    {lists:subtract([list_to_binary(integer_to_list(E)) ||
+				E <- [1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+				      21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+				      41, 42, 43, 44, 45, 46]], Keys), Count};
 	true ->
-	    [Key || Key <- Keys,
-		    dict:fetch(Key, Dict) =:= Minimum]
+	    {[Key || Key <- Keys,
+		     dict:fetch(Key, Dict) =:= Minimum], Count}
     end.    
 
 inner_body() -> 
     wf:comet(fun() ->
 		     {ok, C} = pgsql_pool:get_connection(zensus),
-		     Qlist1 = do_qlist(C),
+		     {Qlist1, Count1} = do_qlist(C),
 		     pgsql_pool:return_connection(zensus, C),
 
 		     Qlist2 = [binary_to_list(Entry) || Entry <- Qlist1],
 		     Qlist = string:join(Qlist2, ", "),
+		     Count = integer_to_list(Count1),
 		     %Qlist="tbi",
 		     
 		     wf:replace(pnlIntro,
@@ -68,19 +69,26 @@ inner_body() ->
 		Hallo und Vielen Dank für Ihr Interesse an unserem Projekt! Details zum
                 Zensus 2011 finden Sie auf der Website
 		   ",
-					       #link { text="zensus11.de", url="http://zensus11.de" }, ".",
+					       #link { text="zensus11.de", url="http://zensus11.de" }, ". ",
+					       "Bei Fragen: info@generator.zensus11.de",
 					       #p{},
 					       "
 		Hinweis: Sie geben das Copyright an sämtlichen hier gemachten
 		   Angaben auf (public domain). Sollten Sie damit nicht einverstanden sein, so machen
                    Sie bitte keine Angaben.",
 					       #p{},
+					       "For the record: es geht hier natürlich nicht darum, daß
+persönliche Angaben gemacht werden. Die Fragen sollen nicht direkt beantwortet werden. Vielmehr sollen
+abstrakte Formulierungen gesammelt werden, mit Hilfe derer ein Fragebogen als Fließtext beantwortet
+werden kann. <a href='/explanation'>Beispiel</a>",
+					       #p{},
+"Wir haben bereits <strong>", Count, "</strong> eingegangene Formulierungen. ",
 					       "Einige Fragen, die am dringensten Antworten brauchen: ", Qlist
 					      ]
 					} )
 	     end),
     [
-     #h1 { text="fragebogen.qapla.eu - Neue Ausformulierung hinzufügen" },
+     #h1 { text="generator.zensus11.de - Neue Ausformulierung hinzufügen" },
      #flash{},
      #panel{
 	     style="float: right",
@@ -116,7 +124,12 @@ inner_body() ->
 		Hinweis: Sie geben das Copyright an sämtlichen hier gemachten
 		   Angaben auf (public domain). Sollten Sie damit nicht einverstanden sein, so machen
                    Sie bitte keine Angaben.
-"
+",#p{},
+"For the record: es geht hier natürlich nicht darum, daß
+persönliche Angaben gemacht werden. Die Fragen sollen nicht direkt beantwortet werden. Vielmehr sollen
+abstrakte Formulierungen gesammelt werden, mit Hilfe derer ein Fragebogen als Fließtext beantwortet
+werden kann. <a href='/explanation'>Beispiel</a>",
+					       #p{}
 	    ]
 },
 #panel{
@@ -130,59 +143,61 @@ inner_body() ->
 
 fragen() ->
     [
-     #option { text="1. Vor- und Nachname", value=1 },
-     #option { text="2. Adressangaben", value=2 },
+     #option { text="1. Vor- und Nachname", value="1" },
+     #option { text="2. Adressangaben", value="2" },
      #option { text="3. Telefonnummer", value=3 },
-     #option { text="4. Geschlecht", value=4 },
-     #option { text="5. Geburtsdatum", value=5 },
-     #option { text="6. Staatsangehörigkeit", value=6 },
-     #option { text="7. Religionsgesellschaft", value=7 },
-     #option { text="9. Familienstand", value=9 },
-     #option { text="10. Lebenspartnerfrage", value=10 },
-     #option { text="11. Personen im Haushalt", value=11 },
-     #option { text="12. Weitere Wohnung", value=12 },
-     #option { text="13. Hauptwohnsitz", value=13 },
-     #option { text="14. Zuzug nach 1955", value=14 },
-     #option { text="15. Zuzug wann genau, falls", value=15 },
-     #option { text="16. Zuzug von wo, falls", value=16 }, 
-     #option { text="17. Mutter Zuzug nach 1955 ja/nein", value=17 }, 
-     #option { text="18. Mutter Zuzug wann, falls", value=18 }, 
-     #option { text="19. Mutter Zuzug von wo, falls", value=19 }, 
-     #option { text="20. Vater Zuzug nach 1955 ja/nein", value=20 }, 
-     #option { text="21. Vater Zuzug wann, falls", value=21 }, 
-     #option { text="22. Vater Zuzug von wo, falls", value=22 }, 
-     #option { text="23. Waren Sie in der Woche vom 9. bis 15. Mai 2011 Schüler/-in einer allgemeinbildenden Schule?", value=23 }, 
-     #option { text="24. Um welche Schule handelte es sich dabei?", value=24 }, 
-     #option { text="25. Welche Klasse besuchten Sie?", value=25 }, 
-     #option { text="26. Haben Sie einen allgemeinbildenden Schulabschluss?", value=26 }, 
-     #option { text="27. Welchen höchsten allgemeinbildenden Schulabschluss haben Sie?", value=27 }, 
-     #option { text="28. Haben Sie einen beruflichen Ausbildungs- oder (Fach-)hochschulabschluss?", value=28 }, 
-     #option { text="29. Welchen höchsten beruflichen Ausbildungs- oder (Fach-)Hochschulabschluss haben Sie?", value=29 }, 
-     #option { text="30. Berufstätigkeit, Nebenjobs", value=30 }, 
-     #option { text="31. Arbeit eine Stunde pro Woche oder mehr", value=31 }, 
-     #option { text="32. Unbezahlte Arbeit in Familienbetrieb", value=32 }, 
-     #option { text="33. Arbeit eine Stunde oder mehr vom 9. bis 15. Mai?", value=33 }, 
-     #option { text="34. Falls 33. nein, warum?", value=34 }, 
-     #option { text="35. Dauer der Unterbrechung der Tätigkeit", value=35 }, 
-     #option { text="36. Fortzahlung des Einkommens", value=36 }, 
-     #option { text="37. Als was sind Sie tätig?", value=37 }, 
-     #option { text="38. Arbeitsort", value=38 }, 
-     #option { text="39. PLZ und Ort des überwiegenden Arbeitsortes", value=39 }, 
-     #option { text="40. Arbeitssuche die letze Woche?", value=40 }, 
-     #option { text="41. Könnten Sie innerhalb der nächsten zwei Wochen eine bezahlte Tätigkeit aufnehmen?", value=41 }, 
-     #option { text="42. Früher schonmal gegen Bezahlung gearbeitet?", value=42 }, 
-     #option { text="43. Als was waren Sie zuletzt tätig?", value=43 }, 
-     #option { text="44. Arbeitsstätte Branche/Wirtschaftszweig", value=44 }, 
-     #option { text="45. Ausgeübter Beruf/Tätigkeit", value=45 }, 
-     #option { text="46. Stichworte zur Tätigkeit", value=46 }
+     #option { text="4. Geschlecht", value="4" },
+     #option { text="5. Geburtsdatum", value="5" },
+     #option { text="6. Staatsangehörigkeit", value="6" },
+     #option { text="7. Religionsgesellschaft", value="7" },
+     #option { text="9. Familienstand", value="9" },
+     #option { text="10. Lebenspartnerfrage", value="10" },
+     #option { text="11. Personen im Haushalt", value="11" },
+     #option { text="12. Bewohnen Sie eine weitere Wohnung in Deutschland?", value="12" },
+     #option { text="13. Ist die hiesige Wohnung die vorwiegend benutzte Wohnung?", value="13" },
+     #option { text="14. Zuzug nach 1955", value="14" },
+     #option { text="15. Zuzug wann genau, falls", value="15" },
+     #option { text="16. Zuzug von wo, falls", value="16" }, 
+     #option { text="17. Mutter Zuzug nach 1955 ja/nein", value="17" }, 
+     #option { text="18. Mutter Zuzug wann, falls", value="18" }, 
+     #option { text="19. Mutter Zuzug von wo, falls", value="19" }, 
+     #option { text="20. Vater Zuzug nach 1955 ja/nein", value="20" }, 
+     #option { text="21. Vater Zuzug wann, falls", value="21" }, 
+     #option { text="22. Vater Zuzug von wo, falls", value="22" }, 
+     #option { text="23. Waren Sie in der Woche vom 9. bis 15. Mai 2011 Schüler/-in einer allgemeinbildenden Schule?", value="23" }, 
+     #option { text="24. Um welche Schule handelte es sich dabei?", value="24" }, 
+     #option { text="25. Welche Klasse besuchten Sie?", value="25" }, 
+     #option { text="26. Haben Sie einen allgemeinbildenden Schulabschluss?", value="26" }, 
+     #option { text="27. Welchen höchsten allgemeinbildenden Schulabschluss haben Sie?", value="27" }, 
+     #option { text="28. Haben Sie einen beruflichen Ausbildungs- oder (Fach-)hochschulabschluss?", value="28" }, 
+     #option { text="29. Welchen höchsten beruflichen Ausbildungs- oder (Fach-)Hochschulabschluss haben Sie?", value="29" }, 
+     #option { text="30. Berufstätigkeit, Nebenjobs", value="30" }, 
+     #option { text="31. Arbeit eine Stunde pro Woche oder mehr", value="31" }, 
+     #option { text="32. Unbezahlte Arbeit in Familienbetrieb", value="32" }, 
+     #option { text="33. Arbeit eine Stunde oder mehr vom 9. bis 15. Mai?", value="33" }, 
+     #option { text="34. Falls 33. nein, warum?", value="34" }, 
+     #option { text="35. Dauer der Unterbrechung der Tätigkeit", value="35" }, 
+     #option { text="36. Fortzahlung des Einkommens", value="36" }, 
+     #option { text="37. Als was sind Sie tätig?", value="37" }, 
+     #option { text="38. Arbeitsort", value="38" }, 
+     #option { text="39. PLZ und Ort des überwiegenden Arbeitsortes", value="39" }, 
+     #option { text="40. Arbeitssuche die letze Woche?", value="40" }, 
+     #option { text="41. Könnten Sie innerhalb der nächsten zwei Wochen eine bezahlte Tätigkeit aufnehmen?", value="41" }, 
+     #option { text="42. Früher schonmal gegen Bezahlung gearbeitet?", value="42" }, 
+     #option { text="43. Als was waren Sie zuletzt tätig?", value="43" }, 
+     #option { text="44. Arbeitsstätte Branche/Wirtschaftszweig", value="44" }, 
+     #option { text="45. Ausgeübter Beruf/Tätigkeit", value="45" }, 
+     #option { text="46. Stichworte zur Tätigkeit", value="46" }
     ].
 
 frage(N) ->
-    frage(N, fragen()).
+    frage(integer_to_list(N), fragen()).
 frage(N, [#option{text=Text, value=N}|_R]) ->
     Text;
 frage(N, [_|R]) ->
-    frage(N, R).
+    frage(N, R);
+frage(N, []) ->
+    error_logger:error_msg("Error 1843: ~p", [N]).
 
 fragedetails(1) ->
     {text, ["Vorname/-n", "Nachname"]};
@@ -464,12 +479,14 @@ details_body(text) ->
 		auf die Frage aus. Alle Teilfragen sollen in einem großen
 		Text gemeinschaftlich beantwortet werden. Sie können die Antwort
 		auf jede Teilfrage durch Angabe von ~1s ersetzen, wobei die Zahl
-		angibt, welche Teilfrage eingesetzt werden soll.
+		angibt, welche Teilfrage eingesetzt werden soll. In der ausformulierten
+                Antwort muß <strong>erkennbar sein, welche Frage beantwortet wird</strong>.
+                Denn die ursprünglichen Fragen werden im Antwortaufsatz nicht enthalten sein.
 		",
 		#p{},
 		"
 		Beispiel: Es ist nach PLZ(1) und Ort(2) gefragt. Die ausformulierte
-		Antwort lautet: 'Mein Wohnort, in dem ich lebe, dieser Lautet ~2s. Die
+		Antwort könnte also zum Beispiel lauten: 'Mein Wohnort, in dem ich lebe, dieser Lautet ~2s. Die
 		zugehörige Postleitzahl, die diesem Ort zugeordnet wurde, lautet ~1s.'
 		",
 		#p{},
@@ -479,6 +496,14 @@ details_body(text) ->
     ];
 details_body(predef) ->
         [
+	 "Bitte geben Sie für jede Auswahlmöglichkeit eine ausführliche Antwort in Form eines Fließtextes an. "
+	 "Von einem Antworttext sollte kein Bezug auf einen anderen Antworttext genommen werden, "
+	 "damit jeder Antworttext an beliebiger Stelle und in beliebigem Kontext genutzt werden kann. ",
+	 "<br />",
+	 "Im Antworttext muß <strong>unbedingt die Frage selbst erwähnt werden</strong>, da die "
+	 "ursprüngliche Frage im Antwortaufsatz nicht enthalten sein wird.",
+	 #link { text="Kurzes Beispiel", url="/bsppredef" },
+	 #p{},
 	 #panel{
             id=subquestions
         },
@@ -558,7 +583,8 @@ wire_textvalidator(Count) ->
 event(qtype) ->
     wf:wire(page1, #fade { speed=500 }),
 
-    [QuestionID] = wf:q(lstQuestion),
+    QuestionID1 = wf:q(lstQuestion),
+    QuestionID = list_to_integer(QuestionID1),
     {Type, Questions} = fragedetails(QuestionID),
     Count = length(Questions),
 
@@ -571,7 +597,7 @@ event(qtype) ->
     wf:replace(pnlQuestion,
 	       #panel{
 		 id=pnlQuestion,
-		 body=[#label{text="Neue Antwortformulierung hinzufügen für: " ++ Question}]
+		 body=[#label{text="Neue Antwortformulierung hinzufügen für: "}, #label{text=Question}]
 		}),
     wf:replace(pnlIntro,
 	       #panel { id=pnlIntro }
@@ -583,12 +609,14 @@ event(qtype) ->
 		 }
 	      ),
 
+
     case Type of
 	text ->
 	    wire_textvalidator(Count);
 	_Else ->
 	    ok
     end,
+
 
     wf:replace(subquestions,
 	       #panel{
@@ -614,7 +642,6 @@ event(fin) ->
     wf:wire(pnlIntro, #fade { speed=500 }),
     wf:wire(pnlThanks, #show { effect=slide, speed=500 }),
 
-    do_db_write(),
     Res = try do_db_write() of
 	      ok -> ok;
 	      _Else -> error
