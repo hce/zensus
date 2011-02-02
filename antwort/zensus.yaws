@@ -9,7 +9,9 @@ out(A) ->
     {{_, Subnet, _, _}, _Port} = A#arg.client_ip_port,
     [{header, {content_type, "text/html; encoding=utf-8"}},
      {html, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE html>\n"
-      "<html lang='en'><head>    <title>Zensus</title><body><form>" ++
+      "<html lang='en'><head>    <title>Zensus</title><body><p>"
+      "Sobald diese Seite komplett geladen ist, kann das Internet ausgeschaltet werden. "
+      "Das läuft alles mit JavaScript hier.</p><form>" ++
       do_render(C, Subnet) ++
       "<br /><input type='submit' value='generate' "
       "onclick='javascript:doit(); return false' /><form /></body></html>"}].
@@ -40,10 +42,11 @@ do_render(C, Subnet) ->
     {ok, Columns, Rows1} = pgsql:squery(C, "SELECT qid,question,question_type,data FROM questions ORDER BY qid::integer ASC"),
     Rows = do_distinction(C, Rows1, Subnet),
     {JS, HTML} = lists:foldl(
-		   fun(E, {JS, HTML}) ->
+		   fun({_,Question,_,_}=E, {JS, HTML}) ->
 			   {JS1, HTML1} = render_question(E),
+			   HTML2 = "<h2>" ++ yaws_api:htmlize(binary_to_list(Question)) ++ "</h2><p>" ++ HTML1 ++ "</p>",
 			   {JS ++ JS1,
-			    HTML ++ HTML1}
+			    HTML ++ HTML2}
 		   end, {[], []}, Rows),
     "<script type='text/javascript'><!--\nfunction doit() {" ++ JS ++
 	"text=" ++ genalltext(Rows) ++ ";\ndocument.write(' <link rel=\\'stylesheet\\' "
@@ -81,8 +84,8 @@ gen_text_js(Qid, Res, Len) ->
     Varname = "text" ++ integer_to_list(Qid),
     Varname ++ " = " ++ js_mk_txt(Res) ++ ";\n" ++
 	lists:foldl(fun(E, Acc) ->
-			    Acc ++ Varname ++ " = " ++ Varname ++ ".replace('~" ++
-				integer_to_list(E) ++ "s', document.getElementById('q" ++
+			    Acc ++ Varname ++ " = " ++ Varname ++ ".replace(/~" ++
+				integer_to_list(E) ++ "s/g, document.getElementById('q" ++
 				integer_to_list(Qid) ++ "a" ++ integer_to_list(E) ++ "').value);\n"
 		    end, [], count(Len)).
 
@@ -103,7 +106,7 @@ gen_predef_js(Qid, Qs) ->
 gen_predef_html(Qid, Qs) ->
     lists:foldl(fun({E, {T, _A}}, Acc) ->
 			Acc ++ "<input type='checkbox' id='q" ++ integer_to_list(Qid) ++
-			    "a" ++ integer_to_list(E) ++ "' />" ++ yaws_api:htmlize(T)
+			    "a" ++ integer_to_list(E) ++ "' />" ++ yaws_api:htmlize(T) ++ "<br />"
 		end, [], enumerate(Qs)).
 
 enumerate(E) ->
@@ -121,6 +124,6 @@ count(0) ->
 	
 
 js_mk_txt(Txt) -> %% TODO.
-    "'" ++ Txt ++ "'".
+    "decodeURIComponent('" ++ yaws_api:url_encode(Txt) ++ "')".
 
 </erl>
