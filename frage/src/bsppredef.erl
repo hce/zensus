@@ -36,7 +36,7 @@ explanations() ->
     [
      "Beispiel für eine gute und eine schlechte Formulierung anhand einer konkreten Frage.",
      #p{},
-     "Die Frage lautet: 'wie ist Ihr Geschlecht? [ ] männlich [ ] weiblich'.",
+     "Die Frage laute: 'wie ist Ihr Geschlecht? [ ] männlich [ ] weiblich'.",
      #p{},
      #label{text="Gute ausformulierte Antworten:"},
      "<strong>männlich:</strong> 'Ich muß bekennen, daß ich männlichen Geschlechts bin'<br /><strong>weiblich:</strong> "

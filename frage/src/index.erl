@@ -145,7 +145,7 @@ fragen() ->
     [
      #option { text="1. Vor- und Nachname", value="1" },
      #option { text="2. Adressangaben", value="2" },
-     #option { text="3. Telefonnummer", value=3 },
+     #option { text="3. Telefonnummer", value="3" },
      #option { text="4. Geschlecht", value="4" },
      #option { text="5. Geburtsdatum", value="5" },
      #option { text="6. Staatsangehörigkeit", value="6" },
