@@ -124,6 +124,6 @@ count(0) ->
 	
 
 js_mk_txt(Txt) -> %% TODO.
-    "decodeURIComponent('" ++ yaws_api:url_encode(Txt) ++ "')".
+    "decodeURIComponent('" ++ yaws_api:url_encode(yaws_api:htmlize(Txt)) ++ "')".
 
 </erl>
