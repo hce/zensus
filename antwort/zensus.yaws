@@ -83,11 +83,11 @@ render_question({Qid1, Question, Qtype, Data}=E) ->
 gen_text_js(Qid, Res, Len) ->
     Varname = "text" ++ integer_to_list(Qid),
     Varname ++ " = " ++ js_mk_txt(Res) ++ ";\n" ++
-	lists:foldl(fun(E, Acc) ->
+	lists:foldl(fun({Len, E}, Acc) ->
 			    Acc ++ Varname ++ " = " ++ Varname ++ ".replace(/~" ++
-				integer_to_list(E) ++ "s/g, document.getElementById('q" ++
+				integer_to_list(Len - E + 1) ++ "s/g, document.getElementById('q" ++
 				integer_to_list(Qid) ++ "a" ++ integer_to_list(E) ++ "').value);\n"
-		    end, [], count(Len)).
+		    end, [], [{Len, E} || E <- count(Len)]).
 
 gen_text_html(Qid, Qs) ->
     lists:foldl(fun({I, T}, Acc) ->
