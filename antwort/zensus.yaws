@@ -1,23 +1,20 @@
 <erl>
 
 out(A) ->
-    {ok, C} = pgsql:connect("127.0.0.1",
-			    "zensus",
-			    "oocee6Iekahx8r",
-			    [{database, "zensus"},
-			     {schema, "public"}]),
     {{_, Subnet, _, _}, _Port} = A#arg.client_ip_port,
     [{header, {content_type, "text/html; encoding=utf-8"}},
      {html, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE html>\n"
       "<html lang='en'><head>    <title>Zensus</title><body><p>"
       "Sobald diese Seite komplett geladen ist, kann das Internet ausgeschaltet werden. "
       "Das läuft alles mit JavaScript hier.</p><form>" ++
-      do_render(C, Subnet) ++
+      do_render(Subnet) ++
       "<br /><input type='submit' value='generate' "
       "onclick='javascript:doit(); return false' /><form /></body></html>"}].
 
-do_distinction(C, Rows, Subnet) ->
+do_distinction(Rows, Subnet) ->
+    {ok, C} = pgsql_pool:get_connection(zensus),
     {ok, _Cols, Rows1} = pgsql:squery(C, "SELECT qid FROM questions"),
+    pgsql_pool:return_connection(zensus, C),
     Dict = lists:foldl(
 	     fun({Qid}, D) ->
 		     dict:store(Qid, try dict:fetch(Qid, D) of
@@ -38,9 +35,11 @@ do_distinction(C, Rows, Subnet) ->
 		    end, {0, -1, []}, Rows),
     Res.
 
-do_render(C, Subnet) ->    
+do_render(Subnet) ->    
+    {ok, C} = pgsql_pool:get_connection(zensus),
     {ok, Columns, Rows1} = pgsql:squery(C, "SELECT qid,question,question_type,data FROM questions ORDER BY qid::integer ASC"),
-    Rows = do_distinction(C, Rows1, Subnet),
+    pgsql_pool:return_connection(zensus, C),
+    Rows = do_distinction(Rows1, Subnet),
     {JS, HTML} = lists:foldl(
 		   fun({_,Question,_,_}=E, {JS, HTML}) ->
 			   {JS1, HTML1} = render_question(E),
