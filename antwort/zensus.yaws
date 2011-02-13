@@ -1,20 +1,45 @@
 <erl>
 
+-define(CACHE_TIMEOUT, 120).
+
 out(A) ->
     {{_, Subnet, _, _}, _Port} = A#arg.client_ip_port,
-    [
-     {header, {content_type, "text/html; encoding=utf-8"}},
-     {html, [
-	     "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE html>\n"
-	     "<html lang='en'><head>    <title>Zensus</title><body><p>"
-	     "Sobald diese Seite komplett geladen ist, kann das Internet ausgeschaltet werden. "
-	     "Das läuft alles mit JavaScript hier.</p><form>",
-	     do_render(Subnet),
-	     "<br /><input type='submit' value='generate' "
-	     "onclick='javascript:doit(); return false' /><form /></body></html>"
-	    ]
-     }
-    ].
+    
+    Curtime = now_secs(),
+    case ets:lookup(zensus_cache, Subnet) of
+	[] ->
+	    render_new(Subnet);
+	[{Subnet, Result, Expire}] ->
+	    if
+		Expire < Curtime ->
+		    render_new(Subnet);
+		true ->
+		    Result
+	    end
+    end.
+
+render_new(Subnet) ->
+    Answer = 
+	[
+	 {header, {content_type, "text/html; encoding=utf-8"}},
+	 {html, [
+		 "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE html>\n"
+		 "<html lang='en'><head>    <title>Zensus</title><body><p>"
+		 "Sobald diese Seite komplett geladen ist, kann das Internet ausgeschaltet werden. "
+		 "Das läuft alles mit JavaScript hier. Seite generiert um ",
+		 generation_time(), ".</p><form>",
+		 do_render(Subnet),
+		 "<br /><input type='submit' value='generate' "
+		 "onclick='javascript:doit(); return false' /><form /></body></html>"
+		]
+	 }
+	],
+    ets:insert(zensus_cache, {Subnet, Answer, now_secs() + ?CACHE_TIMEOUT}),
+    Answer.
+
+generation_time() ->
+    {Date={Year,Month,Day},Time={Hour,Minutes,Seconds}} = erlang:localtime(),
+    io_lib:format("~p:~p", [Hour, Minutes]).   
 
 do_distinction(Rows, Subnet) ->
     {ok, C} = pgsql_pool:get_connection(zensus),
@@ -174,5 +199,9 @@ count(0) ->
 
 js_mk_txt(Txt) -> %% TODO.
     "decodeURIComponent('" ++ yaws_api:url_encode(yaws_api:htmlize(Txt)) ++ "')".
+
+now_secs() ->
+    {A, B, _C} = now(),
+    A * 1000000 + B.
 
 </erl>
