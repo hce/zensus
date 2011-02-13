@@ -3,39 +3,40 @@
 -define(CACHE_TIMEOUT, 120).
 
 out(A) ->
-    {{_, Subnet, _, _}, _Port} = A#arg.client_ip_port,
-    
+    {{_, Subnet1, _, _}, _Port} = A#arg.client_ip_port,
+    Subnet = Subnet1 rem 32,
+
     Curtime = now_secs(),
-    case ets:lookup(zensus_cache, Subnet) of
-	[] ->
-	    render_new(Subnet);
-	[{Subnet, Result, Expire}] ->
-	    if
-		Expire < Curtime ->
-		    render_new(Subnet);
-		true ->
-		    Result
-	    end
-    end.
+    zensus_cache ! {get, self(), Subnet},
+    [
+     {header, {content_type, "text/html; encoding=utf-8"}},
+     receive
+	 [] ->
+	     render_new(Subnet);
+	 [{Result, Expire}] ->
+	     if
+		 Expire < Curtime ->
+		     render_new(Subnet);
+		 true ->
+		     {html, Result}
+	     end
+     end
+    ].
 
 render_new(Subnet) ->
-    Answer = 
-	[
-	 {header, {content_type, "text/html; encoding=utf-8"}},
-	 {html, [
-		 "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE html>\n"
-		 "<html lang='en'><head>    <title>Zensus</title><body><p>"
-		 "Sobald diese Seite komplett geladen ist, kann das Internet ausgeschaltet werden. "
-		 "Das läuft alles mit JavaScript hier. Seite generiert um ",
-		 generation_time(), ".</p><form>",
-		 do_render(Subnet),
-		 "<br /><input type='submit' value='generate' "
-		 "onclick='javascript:doit(); return false' /><form /></body></html>"
-		]
-	 }
-	],
-    ets:insert(zensus_cache, {Subnet, Answer, now_secs() + ?CACHE_TIMEOUT}),
-    Answer.
+    Answer = iolist_to_binary(
+	       [
+		"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE html>\n"
+		"<html lang='en'><head>    <title>Zensus</title><body><p>"
+		"Sobald diese Seite komplett geladen ist, kann das Internet ausgeschaltet werden. "
+		"Das läuft alles mit JavaScript hier. Seite generiert um ",
+		generation_time(), ".</p><form>",
+		do_render(Subnet),
+		"<br /><input type='submit' value='generate' "
+		"onclick='javascript:doit(); return false' /><form /></body></html>"
+	       ]),
+    zensus_cache ! {insert, Subnet, {Answer, now_secs() + ?CACHE_TIMEOUT}},
+    {html, Answer}.
 
 generation_time() ->
     {Date={Year,Month,Day},Time={Hour,Minutes,Seconds}} = erlang:localtime(),
