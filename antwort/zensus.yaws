@@ -2,14 +2,19 @@
 
 out(A) ->
     {{_, Subnet, _, _}, _Port} = A#arg.client_ip_port,
-    [{header, {content_type, "text/html; encoding=utf-8"}},
-     {html, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE html>\n"
-      "<html lang='en'><head>    <title>Zensus</title><body><p>"
-      "Sobald diese Seite komplett geladen ist, kann das Internet ausgeschaltet werden. "
-      "Das läuft alles mit JavaScript hier.</p><form>" ++
-      do_render(Subnet) ++
-      "<br /><input type='submit' value='generate' "
-      "onclick='javascript:doit(); return false' /><form /></body></html>"}].
+    [
+     {header, {content_type, "text/html; encoding=utf-8"}},
+     {html, [
+	     "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE html>\n"
+	     "<html lang='en'><head>    <title>Zensus</title><body><p>"
+	     "Sobald diese Seite komplett geladen ist, kann das Internet ausgeschaltet werden. "
+	     "Das läuft alles mit JavaScript hier.</p><form>",
+	     do_render(Subnet),
+	     "<br /><input type='submit' value='generate' "
+	     "onclick='javascript:doit(); return false' /><form /></body></html>"
+	    ]
+     }
+    ].
 
 do_distinction(Rows, Subnet) ->
     {ok, C} = pgsql_pool:get_connection(zensus),
@@ -43,32 +48,45 @@ do_render(Subnet) ->
     {JS, HTML} = lists:foldl(
 		   fun({_,Question,_,_}=E, {JS, HTML}) ->
 			   {JS1, HTML1} = render_question(E),
-			   HTML2 = "<h2>" ++ yaws_api:htmlize(binary_to_list(Question)) ++ "</h2><p>" ++ HTML1 ++ "</p>",
-			   {JS ++ JS1,
-			    HTML ++ HTML2}
+			   Itl1 = list_to_binary(yaws_api:htmlize(binary_to_list(Question))),
+			   HTML2 = [<<"<h2>", Itl1/binary,
+ 				     "</h2><p>">>,
+				    HTML1,
+				    <<"</p>">>],
+			   {[JS1|JS],
+			    [HTML2|HTML]}
 		   end, {[], []}, Rows),
-    "<script type='text/javascript'><!--\nfunction doit() {" ++ JS ++
-	"text=" ++ genalltext(Rows) ++ ";\ndocument.write(' <link rel=\\'stylesheet\\' "
-	"type=\\'text/css\\' href=\\'/zensus.css\\' /><p>' + text + '</p>');return false;\n}\n-"
-	"-></script>" ++ HTML.
+    HTML1 = lists:reverse(HTML),
+    Gat = genalltext(Rows),
+    [
+     <<"<script type='text/javascript'><!--\nfunction doit() {">>,
+     JS,
+     <<"text=">>,
+     Gat,
+     <<";\ndocument.write(' <link rel=\\'stylesheet\\' ",
+       "type=\\'text/css\\' href=\\'/zensus.css\\' /><p>' + text + '</p>');return false;\n}\n-",
+       "-></script>">>,
+     HTML1
+    ].
 
 genalltext(Rows) ->
-    L = ["text" ++ binary_to_list(Qid) || {Qid,_,_,_} <- Rows],
-    string:join(L, " + \"</p><p>\" + ").
+    [
+     [<< "text", Qid/binary, " + \"</p><p>\" + " >> || {Qid,_,_,_} <- Rows],
+     << "'</p>'" >>
+    ].
 
 render_question({Qid1, Question, Qtype, Data}=E) ->
     Qid = list_to_integer(binary_to_list(Qid1)),
-    Data1 = binary_to_term(base64:decode(Data)),
-    Foo = list_to_binary(lists:flatten(io_lib:format("~p", [Data1]))),
-    << Question/binary,
-     Foo/binary >>,
-    
+    Data1 = binary_to_term(base64:decode(Data)),    
     Qtype1 = case Qtype of
 		 <<"qtype_text">> -> <<"text">>;
 		 <<"qtype_predef">> -> <<"predef">>;
 		 Else -> Else
 	     end,
 
+    render_question(Qid, Data1, Qtype1).
+
+render_question(Qid, Data1, Qtype1) ->
     case Qtype1 of
 	<<"text">> ->
 	    [Res|Qs] = Data1,
@@ -80,33 +98,65 @@ render_question({Qid1, Question, Qtype, Data}=E) ->
     end.
 
 gen_text_js(Qid, Res, Len) ->
-    Varname = "text" ++ integer_to_list(Qid),
-    Varname ++ " = " ++ js_mk_txt(Res) ++ ";\n" ++
-	lists:foldl(fun({Len, E}, Acc) ->
-			    Acc ++ Varname ++ " = " ++ Varname ++ ".replace(/~" ++
-				integer_to_list(Len - E + 1) ++ "s/g, document.getElementById('q" ++
-				integer_to_list(Qid) ++ "a" ++ integer_to_list(E) ++ "').value);\n"
-		    end, [], [{Len, E} || E <- count(Len)]).
+    Varname = list_to_binary("text" ++ integer_to_list(Qid)),
+    Res1 = list_to_binary(js_mk_txt(Res)),
+    Res2 = lists:reverse(
+	     lists:foldl(fun({Len, E}, Acc) ->
+				 Itl1 = list_to_binary(integer_to_list(Len - E + 1)),
+				 Itl2 = list_to_binary(integer_to_list(Qid)),
+				 Itl3 = list_to_binary(integer_to_list(E)),
+				 [<<
+				   Varname/binary, " = ", Varname/binary,
+				   ".replace(/~", Itl1/binary,
+				   "s/g, document.getElementById('q",
+				   Itl2/binary, "a", Itl3/binary, "').value);\n"
+				   >>|Acc]
+			 end, [], [{Len, E} || E <- count(Len)])),
+    [Varname,
+     <<" = ">>,
+     Res1,
+     <<";\n">>,
+     Res2].
 
 gen_text_html(Qid, Qs) ->
-    lists:foldl(fun({I, T}, Acc) ->
-			Acc ++ yaws_api:htmlize(T) ++ ": <input type='text' id='q" ++
-			    integer_to_list(Qid) ++ "a" ++ integer_to_list(I) ++ "' /><br />"
-		end, [], enumerate(Qs)).
+    lists:reverse(
+      lists:foldl(fun({I, T}, Acc) ->
+			  Itl1 = list_to_binary(yaws_api:htmlize(T)),
+			  Itl2 = list_to_binary(integer_to_list(Qid)),
+			  Itl3 = list_to_binary(integer_to_list(I)),
+			  [<<
+			    Itl1/binary, ": <input type='text' id='q",
+			    Itl2/binary, "a",
+			    Itl3/binary, "' /><br />"
+			    >>|Acc]
+		  end, [], enumerate(Qs))).
     
 gen_predef_js(Qid, Qs) ->
-    Varname = "text" ++ integer_to_list(Qid),
-    lists:foldl(fun({E, {_, T}}, Acc) ->
-			Acc ++ "if (document.getElementById('q" ++
-			    integer_to_list(Qid) ++ "a" ++ integer_to_list(E) ++
-			    "').checked) " ++ Varname ++ " += " ++ js_mk_txt(T) ++ ";\n"
-		end, [], enumerate(Qs)).
+    Varname = list_to_binary("text" ++ integer_to_list(Qid)),
+    Itl1 = list_to_binary(integer_to_list(Qid)),
+    lists:reverse(
+      lists:foldl(fun({E, {_, T}}, Acc) ->
+			  Itl2 = list_to_binary(integer_to_list(E)),
+			  Itl3 = list_to_binary(js_mk_txt(T)),
+			  [<< 
+			    "if (document.getElementById('q",
+			    Itl1/binary, "a", Itl2/binary,
+			    "').checked) ", Varname/binary,
+			    " += ", Itl3/binary, ";\n"
+			    >>|Acc]
+		  end, [], enumerate(Qs))).
 
 gen_predef_html(Qid, Qs) ->
-    lists:foldl(fun({E, {T, _A}}, Acc) ->
-			Acc ++ "<input type='checkbox' id='q" ++ integer_to_list(Qid) ++
-			    "a" ++ integer_to_list(E) ++ "' />" ++ yaws_api:htmlize(T) ++ "<br />"
-		end, [], enumerate(Qs)).
+    lists:reverse(
+      lists:foldl(fun({E, {T, _A}}, Acc) ->
+			  Itl1 = list_to_binary(integer_to_list(Qid)),
+			  Itl2 = list_to_binary(integer_to_list(E)),
+			  Itl3 = list_to_binary(yaws_api:htmlize(T)),
+			  [<<
+			    "<input type='checkbox' id='q", Itl1/binary,
+			    "a", Itl2/binary, "' />", Itl3/binary, "<br />"
+			    >>|Acc]
+		  end, [], enumerate(Qs))).
 
 enumerate(E) ->
     enumerate(E, 1).
