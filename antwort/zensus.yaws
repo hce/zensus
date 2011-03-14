@@ -132,10 +132,13 @@ gen_text_js(Qid, Res, Len) ->
 				 Itl2 = list_to_binary(integer_to_list(Qid)),
 				 Itl3 = list_to_binary(integer_to_list(E)),
 				 [<<
+				   "if (document.getElementById('q", Itl2/binary, "a", Itl3/binary, "').value == '') {",
+				   Varname/binary, " = ''; } else { ",
 				   Varname/binary, " = ", Varname/binary,
 				   ".replace(/~", Itl1/binary,
 				   "s/g, document.getElementById('q",
-				   Itl2/binary, "a", Itl3/binary, "').value);\n"
+				   Itl2/binary, "a", Itl3/binary, "').value);\n",
+				   "}"
 				   >>|Acc]
 			 end, [], [{Len, E} || E <- count(Len)])),
     [Varname,
