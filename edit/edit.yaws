@@ -3,8 +3,10 @@
 out(#arg{pathinfo="/save"}=A) ->
     Id = list_to_integer(element(2, yaws_api:postvar(A, "qid"))),
     {ok, C} = pgsql_pool:get_connection(zensus),
-    {ok, _Cols, [{Data1}]} = pgsql:equery(C, "SELECT data FROM questions WHERE id=$1", [Id]),
+    Query1res = pgsql:equery(C, "SELECT data FROM questions WHERE id=$1", [Id]),
     pgsql_pool:return_connection(zensus, C),
+
+    {ok, _Cols, [{Data1}]} = Query1res,
 
     Data = binary_to_term(base64:decode(Data1)),
     Res = case element(2, yaws_api:postvar(A, "qtype")) of
@@ -25,9 +27,10 @@ out(#arg{pathinfo="/save"}=A) ->
 	  end,
 
     {ok, C} = pgsql_pool:get_connection(zensus),
-    {ok, 1} = pgsql:equery(C, "UPDATE questions SET status='checked',data=$1 WHERE id=$2",
+    Query2res = pgsql:equery(C, "UPDATE questions SET status='checked',data=$1 WHERE id=$2",
 			   [base64:encode(term_to_binary(Res)), Id]),
     pgsql_pool:return_connection(zensus, C),
+    {ok, 1} = Query2res,
 
     [
      {header, {content_type, "text/html; encoding=utf8"}},
@@ -37,8 +40,10 @@ out(#arg{pathinfo="/save"}=A) ->
 out(#arg{pathinfo="/"++Id1}=A) ->
     Id = list_to_integer(Id1),
     {ok, C} = pgsql_pool:get_connection(zensus),
-    {ok, _Cols, [Row]} = pgsql:equery(C, "SELECT id,qid,question,contributor,question_type,ctime,data,status FROM questions WHERE id=$1", [Id]),
+    Query1res = pgsql:equery(C, "SELECT id,qid,question,contributor,question_type,ctime,data,status FROM questions WHERE id=$1", [Id]),
     pgsql_pool:return_connection(zensus, C),
+
+    {ok, _Cols, [Row]} = Query1res,
 
     Format = fun({Id,Qid,Question,Cont,Qtype1,Ctime,Data1,Status}) ->
 		     Data = binary_to_term(base64:decode(Data1)),
