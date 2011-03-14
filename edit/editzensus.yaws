@@ -1,3 +1,50 @@
+<?xml version=\"1.0\" encoding=\"utf-8\"?>
+<!DOCTYPE html>
+<html lang='en'>
+  <head>
+    <link rel="stylesheet" type="text/css" href="/main.css" />
+    <title>zensus editor</title>
+  </head>
+  <body>
+    <h1>Zensus viewer</h1>
+    <p>
+      <a href='http://ctf.hcesperer.org/zensus.yaws'>testen</a>
+    </p>
+    <h2>Zur Erläuterung</h2>
+    <p>
+      Auf dieser Seite werden alle eingegangen Antwortmöglichkeiten
+      für Fragen des Zensus 2011 gelistet. Bereits überprüfte
+      Antworten werden ganz unten gelistet. Die Antworten können als
+      ungeeignet oder als OK gekennzeichnet werden. Sie können auch
+      überarbeitet werden.
+    </p>
+    <p>
+      Eine Antwort sollte keinen Bezug auf andere Antworten nehmen,
+      auch nicht auf solche, die dieselbe Frage oder die vorhergehende
+      Frage betreffen. Nur so kann sichergestellt werden, daß
+      Antwortformulierungen in beliebiger Reihenfolge und Kombination
+      verwendet werden können.
+    </p>
+    <p>
+      Alle Antworten sollten geschlechtsneutral formuliert
+      sein. Darüber hinaus sollten die Antworten eine "neutrale
+      Weltanschauung" haben. Zum Beispiel sollte als Antwort für "ich
+      bin arbeitslos" folgende Formulierung vermieden werden: "aus
+      Arbeit mache ich mir nichts". Dies mag für den ein oder anderen
+      zutreffen, kann aber keinesfalls pauschalisierend als
+      Weltanschauung aller momentan Arbeitslosen angesehen werden.
+    </p>
+    <p>
+      Zur Bearbeitung einer Frage bietet es sich an, den Link in einem
+      eigenen Browserfenster zu öffen (in Firefox/Chromium hilft hier
+      der Klick mit der mittleren Maustaste). So wird die Übersicht
+      gewahrt.
+    </p>
+    <p>
+      Bei Fragen: hc@hcesperer.org kontaktieren.
+    </p>
+    <p>
+
 <erl>
 
 out(A) ->
@@ -41,7 +88,6 @@ out(A) ->
 
     [
      {header, {content_type, "text/html; encoding=utf8"}},
-     {html, "<?xml version=\"1.0\" encoding=\"utf-8\"?><!DOCTYPE html><html lang='en'><head><link rel=\"stylesheet\" type=\"text/css\" href=\"/main.css\" /><title>zensus editor</title></head><body><h1>Zensus viewer</h1><p><a href='http://ctf.hcesperer.org/zensus.yaws'>testen</a></p><p>"},
      {ehtml, List},
 %     {html, f("~p",[List])},
      {html, "</p></body></html>"}
