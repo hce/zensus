@@ -1,0 +1,76 @@
+<erl>
+
+out(A) ->
+    {ok, C} = pgsql_pool:get_connection(zensus),
+    {ok, _Cols, Rows} = pgsql:squery(C, "SELECT id,qid,question,contributor,question_type,ctime,data,status FROM questions ORDER BY status DESC, id DESC"),
+    pgsql_pool:return_connection(zensus, C),
+
+    List = lists:foldl(fun({Id,Qid,Question,Cont,Qtype1,Ctime,Data1,Status}, Others) ->
+			       Data = binary_to_term(base64:decode(Data1)),
+			       Id1 = binary_to_list(Id),
+			       Qtype = case Qtype1 of
+					   <<"qtype_text">> -> <<"text">>;
+					   <<"qtype_predef">> -> <<"predef">>;
+					   Else -> Else
+				       end,
+			       Divstyle = case Status of
+					      null -> [];
+					      <<"checked">> -> [{style, "border: thin solid #00FF00"}];
+					      <<"deleted">> -> [{style, "border: thick solid #FF0000"}]
+					  end,
+			       Actions = [
+					  {a, [{href, "mark.yaws/" ++ Id1 ++ "?type=deleted"}], "Als gänzlich ungeeignet markieren"},
+					  {a, [{href, "edit.yaws/" ++ Id1}], "Bearbeiten"},
+					  {a, [{href, "mark.yaws/" ++ Id1 ++ "?type=checked"}], "Als geprüft und OK markieren"}
+					 ],
+			       Others ++ [
+					  {'div', Divstyle,
+					   [
+					    {h2, [], "Antwort #" ++ h(Id)},
+					    {p, [], addseps(Actions)},
+					    {p, [], ["Bezieht sich auf Frage ",
+						     {strong, [], h(Question)}]},
+					    {p, [], "Beigetragen von: " ++ case h(Cont) of [] -> "anonymous"; Else2 -> Else2 end},
+					    {p, [], "Zustand: " ++ case Status of null -> "not reviewed"; Else2 -> Else2 end},
+					    {'div', [{style, "border: thin dotted black"}],
+					     formatdata(Qtype, Data)}
+					   ]
+					  }
+					 ]
+		       end, [], Rows),
+
+    [
+     {header, {content_type, "text/html; encoding=utf8"}},
+     {html, "<?xml version=\"1.0\" encoding=\"utf-8\"?><!DOCTYPE html><html lang='en'><head><link rel=\"stylesheet\" type=\"text/css\" href=\"/main.css\" /><title>zensus editor</title></head><body><h1>Zensus viewer</h1><p><a href='http://ctf.hcesperer.org/zensus.yaws'>testen</a></p><p>"},
+     {ehtml, List},
+%     {html, f("~p",[List])},
+     {html, "</p></body></html>"}
+    ].
+
+addseps([]) ->
+     [];
+addseps([Elem]) ->
+    [Elem];
+addseps([Elem|R]) ->
+    [Elem, " -- "] ++ addseps(R).
+
+h(Val) when is_integer(Val) ->
+    integer_to_list(Val);
+h(Val) when is_binary(Val) ->
+    h(binary_to_list(Val));
+h(Val) when is_list(Val) ->
+    yaws_api:htmlize(Val).
+
+formatdata(<<"text">>, [Formuliert|_Fragen]) ->
+    h(Formuliert);
+formatdata(<<"predef">>, Foostuff) ->
+    Rows = lists:foldl(fun({Frage, Antwort}, Acc) ->
+			       Acc ++
+				   [
+				    {h3, [], Frage},
+				    {p, [{style, "margin-left: 32px"}], Antwort}
+				   ]
+		       end, [], Foostuff),
+    [{table, [], Rows}].
+
+</erl>

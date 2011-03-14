@@ -1,0 +1,138 @@
+<erl>
+
+out(#arg{pathinfo="/save"}=A) ->
+    Id = list_to_integer(element(2, yaws_api:postvar(A, "qid"))),
+    {ok, C} = pgsql_pool:get_connection(zensus),
+    {ok, _Cols, [{Data1}]} = pgsql:equery(C, "SELECT data FROM questions WHERE id=$1", [Id]),
+    pgsql_pool:return_connection(zensus, C),
+
+    Data = binary_to_term(base64:decode(Data1)),
+    Res = case element(2, yaws_api:postvar(A, "qtype")) of
+	      "text" ->
+		  [_|Fragen] = Data,
+		  [element(2, yaws_api:postvar(A, "text"))|Fragen];
+	      "predef" ->
+		  lists:reverse(
+		    element(2,
+			    lists:foldl(fun({Question, _Oldanswer}, {Count, Acc}) ->
+						{Count + 1,
+						 [
+						  {Question,
+						   element(2,
+							   yaws_api:postvar(A, "text_" ++
+									    integer_to_list(Count)))}|Acc]}
+					end, {0, []}, Data)))
+	  end,
+
+    {ok, C} = pgsql_pool:get_connection(zensus),
+    {ok, 1} = pgsql:equery(C, "UPDATE questions SET status='checked',data=$1 WHERE id=$2",
+			   [base64:encode(term_to_binary(Res)), Id]),
+    pgsql_pool:return_connection(zensus, C),
+
+    [
+     {header, {content_type, "text/html; encoding=utf8"}},
+     {html, "<?xml version=\"1.0\" encoding=\"utf-8\"?><!DOCTYPE html><html lang='en'><head><link rel=\"stylesheet\" type=\"text/css\" href=\"/main.css\" /><title>zensus editor</title></head><body><h1>Zensus viewer</h1><p>Änderungen gespeichert und akzeptiert. <a href='../editzensus.yaws'>Zurück</a></p></body></html>"}
+    ];
+
+out(#arg{pathinfo="/"++Id1}=A) ->
+    Id = list_to_integer(Id1),
+    {ok, C} = pgsql_pool:get_connection(zensus),
+    {ok, _Cols, [Row]} = pgsql:equery(C, "SELECT id,qid,question,contributor,question_type,ctime,data,status FROM questions WHERE id=$1", [Id]),
+    pgsql_pool:return_connection(zensus, C),
+
+    Format = fun({Id,Qid,Question,Cont,Qtype1,Ctime,Data1,Status}) ->
+		     Data = binary_to_term(base64:decode(Data1)),
+		     Id1 = h(Id),
+		     Qtype = case Qtype1 of
+				 <<"qtype_text">> -> <<"text">>;
+				 <<"qtype_predef">> -> <<"predef">>;
+				 Else -> Else
+			     end,
+		     Divstyle = case Status of
+				    null -> [];
+				    <<"checked">> -> [{style, "border: thin solid #00FF00"}];
+				    <<"deleted">> -> [{style, "border: thick solid #FF0000"}]
+				end,
+		     [
+		      {'div', Divstyle,
+		       [
+			{h2, [], "Antwort #" ++ h(Id)},
+%			{p, [], addseps(Actions)},
+			{p, [], ["Bezieht sich auf Frage ",
+				 {strong, [], h(Question)}]},
+			{p, [], "Beigetragen von: " ++ case h(Cont) of [] -> "anonymous"; Else2 -> Else2 end},
+			{p, [], "Zustand: " ++ case Status of null -> "not reviewed"; Else2 -> Else2 end},
+			{'div', [{style, "border: thin dotted black"}],
+			 formatdata(Qtype, Data)}
+		       ]
+		      }
+		     ]
+	     end,
+
+    Id = element(1, Row),
+    Qtype = case element(5, Row) of
+		<<"qtype_text">> -> <<"text">>;
+		<<"qtype_predef">> -> <<"predef">>;
+		Else -> Else
+	    end,
+
+    [
+     {header, {content_type, "text/html; encoding=utf8"}},
+     {html, "<?xml version=\"1.0\" encoding=\"utf-8\"?><!DOCTYPE html><html lang='en'><head><link rel=\"stylesheet\" type=\"text/css\" href=\"/main.css\" /><title>zensus editor</title></head><body><h1>Zensus viewer</h1><p>"},
+     {ehtml,
+      {form, [{method, "post"},
+	      {action, "../edit.yaws/save"}],
+       [
+	{p, [], Format(Row)},
+	{p, [], [
+		 {input, [{type, "hidden"},
+			  {name, "qtype"},
+			  {value, binary_to_list(Qtype)}], []},
+		 {input, [{type, "hidden"},
+			  {name, "qid"},
+			  {value, integer_to_list(Id)}], []}
+		]
+	},
+	{p, [], [
+		 {input, [{type, "submit"},
+			  {value, "Speichern / akzeptieren"}]}
+		 ]
+	}
+       ]
+      }
+     },
+      {html, "</p></body></html>"}
+     ].
+
+addseps([]) ->
+     [];
+addseps([Elem]) ->
+    [Elem];
+addseps([Elem|R]) ->
+    [Elem, " -- "] ++ addseps(R).
+
+h(Val) when is_integer(Val) ->
+    integer_to_list(Val);
+h(Val) when is_binary(Val) ->
+    h(binary_to_list(Val));
+h(Val) when is_list(Val) ->
+    yaws_api:htmlize(Val).
+
+formatdata(<<"text">>, [Formuliert|_Fragen]) ->
+    {textarea, [{name, "text"}, {rows, 12}, {cols, 72}], (Formuliert)};
+formatdata(<<"predef">>, Foostuff) ->
+    {_, Rows} = lists:foldl(fun({Frage, Antwort}, {Num, Acc}) ->
+				    {
+				 Num + 1,
+				 Acc ++
+				 [
+				  {h3, [], Frage},
+				  {textarea, [{name, "text_" ++ integer_to_list(Num)},
+					      {style, "margin-left: 32px"},
+					      {rows, 5}, {cols, 72}], Antwort}
+				 ]
+				}
+			    end, {0, []}, Foostuff),
+    [{table, [], Rows}].
+
+</erl>

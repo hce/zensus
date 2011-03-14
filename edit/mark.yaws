@@ -1,0 +1,15 @@
+<erl>
+
+out(#arg{pathinfo="/"++Id1}=A) ->
+    Id = list_to_integer(Id1),
+    {ok, Type} = yaws_api:getvar(A, "type"),
+    {ok, C} = pgsql_pool:get_connection(zensus),
+    {ok, _1} = pgsql:equery(C, "UPDATE questions SET status=$1 WHERE id=$2", [Type, Id]),
+    pgsql_pool:return_connection(zensus, C),
+
+    [
+     {header, {content_type, "text/html; encoding=utf8"}},
+     {html, "<?xml version=\"1.0\" encoding=\"utf-8\"?><!DOCTYPE html><html lang='en'><head><link rel=\"stylesheet\" type=\"text/css\" href=\"/main.css\" /><title>zensus editor</title></head><body><h1>Zensus viewer</h1><p>Frage markiert. <a href='../editzensus.yaws'>Ok, zurück!</a></p></body></html>"}
+    ].
+
+</erl>
