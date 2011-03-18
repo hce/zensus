@@ -9,7 +9,7 @@ out(A) ->
     Curtime = now_secs(),
     zensus_cache ! {get, self(), Subnet},
     [
-     {header, {content_type, "text/html; encoding=utf-8"}},
+     {header, {content_type, "text/html; charset=utf-8"}},
      receive
 	 [] ->
 	     render_new(Subnet);
@@ -26,14 +26,41 @@ out(A) ->
 render_new(Subnet) ->
     Answer = iolist_to_binary(
 	       [
-		"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE html>\n"
-		"<html lang='en'><head>    <title>Zensus</title><body><p>"
-		"Sobald diese Seite komplett geladen ist, kann das Internet ausgeschaltet werden. "
-		"Das läuft alles mit JavaScript hier. Seite generiert um ",
-		generation_time(), ".</p><form>",
+%		"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE html>\n"
+		"<!DOCTYPE html>\n"
+		"<html lang='en'><head>    <title>Zensus</title>"
+		"<link rel='stylesheet' type='text/css' href='/zensus.css' />"
+		"<meta charset='UTF-8'>"
+		"</head>"
+		"<body>"
+		"<p style='border-left: thin dotted black; float: right; font-size: small'>Seite generiert um ",
+		generation_time(), ".</p>"
+		"<p style='border-right: thin dotted black'>Sobald diese Seite komplett geladen ist, kann das Internet ausgeschaltet werden. "
+		"Das läuft alles mit JavaScript hier. Dies ist im übrigen die empfohlene Vorgehensweise. Sobald im "
+		"Kästchen 'Seite geladen' angezeigt wird, sollte die Internetverbindung getrennt werden, so "
+		"ist sichergestellt, daß die hier eingegebenen Daten nicht ins Internet gelangen. Nachdem der "
+		"Browser geschlossen wurde, kann das Internet dann wieder 'eingeschaltet' werden.</p>"
+		"<p>Es sei der Vollständigkeit halber darauf hingewiesen, "
+		"daß laut Zensusgesetz für den Zensus 2011 die offiziellen "
+		"Fragebögen zur Beantwortung der Fragen genutzt werden müssen; "
+		"demnach eignet sich dieser Zensus-Generator, wenn man seinen Freunden "
+		"und Verwandten oder seinem Lehensherr intimste Einblicke in das eigene "
+		"persönliche Leben gewähren will.</p>"
+		"<div id='loading' style='border: thin dotted black'>Seite wird geladen, bitte warten... <strong>Javascript <i>muss</i> aktiviert sein.</strong></div>"
+		"<p>Hinweis für die Testphase: es werden ab sofort nur noch überprüfte und als akzeptabel markierte Antworten mit einbezogen."
+		" Dies kann dazu führen, daß, solange noch nicht alle Antworten überprüft wurden, nicht alle Fragen hier erscheinen.</p>"
+		"<p>Wir danken alljenen, deren Antwortformulierungen die Grundlage dieses Zensus-Generators bieten. E Pluribus Unum! Vielen Dank an Josie "
+		"und Sandra für's Korrekturlesen der Antworten.</p>"
+		"<p>Benutzung auf eigene Gefahr. Vor Verwendung des Resultats empfehlen wir ausdrücklich, dieses "
+		"einmal durchzulesen, damit man nicht hinterher vom eigenen Geschriebenen überrascht ist. :}</p>"
+		"<form>",
 		do_render(Subnet),
-		"<br /><input type='submit' value='generate' "
-		"onclick='javascript:doit(); return false' /><form /></body></html>"
+		"<br /><input type='submit' value='Antworttext generieren' "
+		"onclick='javascript:doit(); return false' /></form>"
+		"<h2>Ausgabe</h2>",
+		"<div style='border: thick solid black' id='outputfield' readonly='readonly' cols='72' rows='25'></div>"
+		"<script type='text/javascript'>document.getElementById('loading').innerHTML = 'Seite geladen, das Internet kann abgeschaltet werden.';</script>",
+		"</body></html>"
 	       ]),
     zensus_cache ! {insert, Subnet, {Answer, now_secs() + ?CACHE_TIMEOUT}},
     {html, Answer}.
@@ -44,7 +71,7 @@ generation_time() ->
 
 do_distinction(Rows, Subnet) ->
     {ok, C} = pgsql_pool:get_connection(zensus),
-    {ok, _Cols, Rows1} = pgsql:squery(C, "SELECT qid FROM questions"),
+    {ok, _Cols, Rows1} = pgsql:squery(C, "SELECT qid FROM questions WHERE status='checked'"),
     pgsql_pool:return_connection(zensus, C),
     Dict = lists:foldl(
 	     fun({Qid}, D) ->
@@ -53,7 +80,7 @@ do_distinction(Rows, Subnet) ->
 				     catch _:_ -> 0 end + 1, D)
 	     end, dict:new(), Rows1),
     {_, _, Res} = lists:foldl(
-		    fun({Qid,_,_,_}=Row, {Count1, Lastqid, L}) ->
+		    fun({Qid,_,_,_,_}=Row, {Count1, Lastqid, L}) ->
 			    Count = if Lastqid =:= Qid -> Count1;
 				       true -> 0 end,
 			    {Count + 1, Qid, L ++
@@ -68,11 +95,11 @@ do_distinction(Rows, Subnet) ->
 
 do_render(Subnet) ->    
     {ok, C} = pgsql_pool:get_connection(zensus),
-    {ok, Columns, Rows1} = pgsql:squery(C, "SELECT qid,question,question_type,data FROM questions ORDER BY qid::integer ASC"),
+    {ok, Columns, Rows1} = pgsql:squery(C, "SELECT qid,question,question_type,data,contributor FROM questions WHERE status='checked' ORDER BY qid::integer ASC"),
     pgsql_pool:return_connection(zensus, C),
     Rows = do_distinction(Rows1, Subnet),
     {JS, HTML} = lists:foldl(
-		   fun({_,Question,_,_}=E, {JS, HTML}) ->
+		   fun({_,Question,_,_,_}=E, {JS, HTML}) ->
 			   {JS1, HTML1} = render_question(E),
 			   Itl1 = list_to_binary(yaws_api:htmlize(binary_to_list(Question))),
 			   HTML2 = [<<"<h2>", Itl1/binary,
@@ -83,25 +110,38 @@ do_render(Subnet) ->
 			    [HTML2|HTML]}
 		   end, {[], []}, Rows),
     HTML1 = lists:reverse(HTML),
+    Footnotes = lists:reverse(
+		  lists:foldl(
+		    fun({Qid,_,_,_,Contributor}, Acc) ->
+			    Html = [
+				    binary_to_list(Qid), ") ",
+				    binary_to_list(yaws_api:htmlize(case Contributor of <<"">> -> <<"unbekannt">>; Else -> Else end)),
+				    " "
+				   ],
+			    [Html|Acc]
+		    end, [], Rows)),
     Gat = genalltext(Rows),
+    Footnotes_J = js_mk_txt(lists:flatten(Footnotes)),
     [
      <<"<script type='text/javascript'><!--\nfunction doit() {">>,
      JS,
      <<"text=">>,
      Gat,
-     <<";\ndocument.write(' <link rel=\\'stylesheet\\' ",
-       "type=\\'text/css\\' href=\\'/zensus.css\\' /><p>' + text + '</p>');return false;\n}\n-",
+     <<";\ndocument.getElementById('outputfield').innerHTML = '<h1>Mein Leben</h1><p>' + text + '</p><h2>Fußnoten</h2><p>' + " >>,
+     Footnotes_J,
+     << " + '</p>'",
+      ";return false;\n}\n-",
        "-></script>">>,
      HTML1
     ].
 
 genalltext(Rows) ->
     [
-     [<< "text", Qid/binary, " + \"</p><p>\" + " >> || {Qid,_,_,_} <- Rows],
+     [<< "text", Qid/binary, " + \"</p><p>\" + " >> || {Qid,_,_,_,_} <- Rows],
      << "'</p>'" >>
     ].
 
-render_question({Qid1, Question, Qtype, Data}=E) ->
+render_question({Qid1, Question, Qtype, Data, _Contributor}=E) ->
     Qid = list_to_integer(binary_to_list(Qid1)),
     Data1 = binary_to_term(base64:decode(Data)),    
     Qtype1 = case Qtype of
