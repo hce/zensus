@@ -2,6 +2,19 @@
 
 -define(CACHE_TIMEOUT, 120).
 
+fragegruppen() ->
+    [
+     [1, 2, 3, 4, 5],
+     [6],
+     [7],
+     [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22],
+     [23, 24, 25, 26, 27, 28, 29],
+     [30, 31, 32, 33, 34, 35, 36],
+     [37, 38, 39],
+     [40, 41, 42, 43, 44],
+     [45, 46]
+    ].
+
 out(A) ->
     {{_, Subnet1, _, _}, _Port} = A#arg.client_ip_port,
     Subnet = Subnet1 rem 32,
@@ -22,6 +35,14 @@ out(A) ->
 	     end
      end
     ].
+
+shuffle(List) ->
+     shuffle(List, []).
+
+shuffle([], Acc) -> Acc;
+shuffle(List, Acc) ->
+    {Leading, [H | T]} = lists:split(random:uniform(length(List)) - 1, List),
+    shuffle(Leading ++ T, [H | Acc]).
 
 render_new(Subnet) ->
     Answer = iolist_to_binary(
@@ -53,6 +74,8 @@ render_new(Subnet) ->
 		"und Sandra für's Korrekturlesen der Antworten.</p>"
 		"<p>Benutzung auf eigene Gefahr. Vor Verwendung des Resultats empfehlen wir ausdrücklich, dieses "
 		"einmal durchzulesen, damit man nicht hinterher vom eigenen Geschriebenen überrascht ist. :}</p>"
+		"<p>Es ist Anzuraten, bei der Ausfüllung dieses Webformulars den vom Zensus-Amt bereitgestellten Fragebogen "
+		"zu konsultieren, da dieser weiterführende Erläuterung zur Bedeutung der einzelnen Fragen enthält.</p>"
 		"<form>",
 		do_render(Subnet),
 		"<br /><input type='submit' value='Antworttext generieren' "
@@ -136,8 +159,17 @@ do_render(Subnet) ->
     ].
 
 genalltext(Rows) ->
+    Qids1 = [list_to_integer(binary_to_list(Qid)) || {Qid,_,_,_,_} <- Rows],
+    Qids = lists:flatten(
+	     shuffle(
+	       lists:foldl(fun(Curgroup, Acc) ->
+				   Groupqids = [list_to_binary(integer_to_list(Qid)) ||
+						   Qid <- Qids1,
+						   lists:member(Qid, Curgroup)],
+				   [Groupqids|Acc]
+			   end, [], fragegruppen()))),
     [
-     [<< "text", Qid/binary, " + \"</p><p>\" + " >> || {Qid,_,_,_,_} <- Rows],
+     [<< "text", Qid/binary, " + \"</p><p>\" + " >> || Qid <- Qids],
      << "'</p>'" >>
     ].
 
@@ -220,7 +252,7 @@ gen_predef_html(Qid, Qs) ->
       lists:foldl(fun({E, {T, _A}}, Acc) ->
 			  Itl1 = list_to_binary(integer_to_list(Qid)),
 			  Itl2 = list_to_binary(integer_to_list(E)),
-			  Itl3 = list_to_binary(yaws_api:htmlize(T)),
+			  Itl3 = yaws_api:htmlize(damn_correct(T)),
 			  [<<
 			    "<input type='checkbox' id='q", Itl1/binary,
 			    "a", Itl2/binary, "' />", Itl3/binary, "<br />"
@@ -239,7 +271,21 @@ count(N) when is_integer(N), N > 0 ->
 count(0) ->
     [].
 			    
-	
+damn_correct(T) ->
+    Pattern1 = binary:compile_pattern(<<"Eingetragene Lebensparnerin">>),
+    Pattern2 = binary:compile_pattern(<<"Fachschluabschluss">>),
+    Pattern3 = binary:compile_pattern(<<"Selbstständige mit Beschäftigten">>),
+    Pattern4 = binary:compile_pattern(<<"Sonstige Überwiegend Personenbezogene Dienstleistungen">>),
+    Pattern5 = binary:compile_pattern(<<"(auch Fahrschulen), Kindergärten)Gesundheits- und Sozialwesen">>),
+    Pattern6 = binary:compile_pattern(<<"Hochschulen, Schulen, sonstige Schulen ">>),
+
+    T1 = binary:replace(list_to_binary(T), Pattern1, <<"Eingetragene Lebenspartnerin">>),
+    T2 = binary:replace(T1, Pattern2, <<"Fachschulabschluss">>),
+    T3 = binary:replace(T2, Pattern3, <<"Selbstständige/-r mit Beschäftigten">>),
+    T4 = binary:replace(T3, Pattern4, <<"Sonstige überwiegend personenbezogene Dienstleistungen">>),
+    T5 = binary:replace(T4, Pattern5, <<"Gesundheits- und Sozialwesen">>),
+    T6 = binary:replace(T5, Pattern6, <<"Hochschulen, Schulen, sonstige Schulen (auch Fahrschulen), Kindergärten)">>),
+    T6.
 
 js_mk_txt(Txt) -> %% TODO.
     "decodeURIComponent('" ++ yaws_api:url_encode(yaws_api:htmlize(Txt)) ++ "')".
