@@ -1,0 +1,25 @@
+<!DOCTYPE html> 
+<html lang='en'>
+  <head>
+    <title>Zensus-Generator-Feedback</title>
+    <link rel='stylesheet' type='text/css' href='/zensus.css' />
+    <meta charset='UTF-8'>
+  </head>
+  <body>
+    <h1>Feedback</h1>
+    <p>Sie können die Initiatoren des Zensus-Generators über dieses
+    Kontaktformular erreichen. Eine Verschlüsselung Ihrer Nachricht
+    findet <strong>nicht</strong> statt.</p>
+    <form action='post_feedback.yaws' method='post'>
+      <p>
+	<textarea name='feedback' cols='72' rows='25'></textarea>
+      </p>
+      <p>
+	<input type='submit' value='Abschicken' />
+      </p>
+    </form>
+    <p>
+      <a href="http://zensus11.de/impressum/">Impressum</a>
+    </p>
+  </body>
+</html>

@@ -1,6 +1,6 @@
 <erl>
 
--define(CACHE_TIMEOUT, 120).
+-define(CACHE_TIMEOUT, 600).
 
 fragegruppen() ->
     [
@@ -56,6 +56,7 @@ render_new(Subnet) ->
 		"<body>"
 		"<p style='border-left: thin dotted black; float: right; font-size: small'>Seite generiert um ",
 		generation_time(), ".</p>"
+		"<p><strong>Wir sind momentan im <i>Testbetrieb</i>.</strong></p>"
 		"<p style='border-right: thin dotted black'>Sobald diese Seite komplett geladen ist, kann das Internet ausgeschaltet werden. "
 		"Das läuft alles mit JavaScript hier. Dies ist im übrigen die empfohlene Vorgehensweise. Sobald im "
 		"Kästchen 'Seite geladen' angezeigt wird, sollte die Internetverbindung getrennt werden, so "
@@ -68,21 +69,20 @@ render_new(Subnet) ->
 		"und Verwandten oder seinem Lehensherr intimste Einblicke in das eigene "
 		"persönliche Leben gewähren will.</p>"
 		"<div id='loading' style='border: thin dotted black'>Seite wird geladen, bitte warten... <strong>Javascript <i>muss</i> aktiviert sein.</strong></div>"
-		"<p>Hinweis für die Testphase: es werden ab sofort nur noch überprüfte und als akzeptabel markierte Antworten mit einbezogen."
-		" Dies kann dazu führen, daß, solange noch nicht alle Antworten überprüft wurden, nicht alle Fragen hier erscheinen.</p>"
-		"<p>Wir danken alljenen, deren Antwortformulierungen die Grundlage dieses Zensus-Generators bieten. E Pluribus Unum! Vielen Dank an Josie "
-		"und Sandra für's Korrekturlesen der Antworten.</p>"
-		"<p>Benutzung auf eigene Gefahr. Vor Verwendung des Resultats empfehlen wir ausdrücklich, dieses "
-		"einmal durchzulesen, damit man nicht hinterher vom eigenen Geschriebenen überrascht ist. :}</p>"
-		"<p>Es ist Anzuraten, bei der Ausfüllung dieses Webformulars den vom Zensus-Amt bereitgestellten Fragebogen "
-		"zu konsultieren, da dieser weiterführende Erläuterung zur Bedeutung der einzelnen Fragen enthält.</p>"
+		"<p>Wir danken alljenen, deren Antwortformulierungen die Grundlage dieses Zensus-Generators bieten; Einzelnachweise sind in den Quellenangaben zu finden. E Pluribus Unum! Vielen Dank an Josie "
+		"und Sandra, die sämtliche eingegangenen Formulierungen Korrektur lasen und als Beta-Tester fungierten.</p>"
+		"<p>Vor Verwendung des Resultats empfehlen wir ausdrücklich, dieses "
+		"einmal durchzulesen, um nicht hinterher vom eigenen Geschriebenen überrascht zu werden. :}</p>"
+		"<p>Es ist anzuraten, bei der Ausfüllung dieses Webformulars den vom Zensus-Amt bereitgestellten Fragebogen "
+		"zu konsultieren, da dieser weiterführende Erläuterungen zur Beantwortung der einzelnen Fragen enthält.</p>"
 		"<form>",
 		do_render(Subnet),
 		"<br /><input type='submit' value='Antworttext generieren' "
 		"onclick='javascript:doit(); return false' /></form>"
 		"<h2>Ausgabe</h2>",
-		"<div style='border: thick solid black' id='outputfield' readonly='readonly' cols='72' rows='25'></div>"
-		"<script type='text/javascript'>document.getElementById('loading').innerHTML = 'Seite geladen, das Internet kann abgeschaltet werden.';</script>",
+		"<div style='border: thick solid black; width: 768px; min-height: 25px' id='outputfield'>'Antworttext generieren' anklicken.</div>"
+		"<script type='text/javascript'>document.getElementById('loading').innerHTML = 'Seite geladen, das Internet kann abgeschaltet werden.';</script>"
+		"<p>coded by hc - <a href='http://zensus11.de/impressum/'>Impressum</a>, as required per German law, <a href='feedback.yaws'>Kontaktformular</a></p>"
 		"</body></html>"
 	       ]),
     zensus_cache ! {insert, Subnet, {Answer, now_secs() + ?CACHE_TIMEOUT}},
@@ -150,7 +150,7 @@ do_render(Subnet) ->
      JS,
      <<"text=">>,
      Gat,
-     <<";\ndocument.getElementById('outputfield').innerHTML = '<h1>Mein Leben</h1><p>' + text + '</p><h2>Fußnoten</h2><p>' + " >>,
+     <<";\ndocument.getElementById('outputfield').innerHTML = '<h1>Mein Leben</h1><p>' + text + '</p><h2>Quellennachweis</h2><p>' + " >>,
      Footnotes_J,
      << " + '</p>'",
       ";return false;\n}\n-",
@@ -248,16 +248,18 @@ gen_predef_js(Qid, Qs) ->
 		  end, [], enumerate(Qs))).
 
 gen_predef_html(Qid, Qs) ->
-    lists:reverse(
-      lists:foldl(fun({E, {T, _A}}, Acc) ->
-			  Itl1 = list_to_binary(integer_to_list(Qid)),
-			  Itl2 = list_to_binary(integer_to_list(E)),
-			  Itl3 = yaws_api:htmlize(damn_correct(T)),
-			  [<<
-			    "<input type='checkbox' id='q", Itl1/binary,
-			    "a", Itl2/binary, "' />", Itl3/binary, "<br />"
-			    >>|Acc]
-		  end, [], enumerate(Qs))).
+    Randname = list_to_binary(yaws_api:htmlize(f("~p", [make_ref()]))),
+    [<<"<input checked='checked' type='radio' name='", Randname/binary, "' />Keine Angabe<br />">>|
+     lists:reverse(
+       lists:foldl(fun({E, {T, _A}}, Acc) ->
+			   Itl1 = list_to_binary(integer_to_list(Qid)),
+			   Itl2 = list_to_binary(integer_to_list(E)),
+			   Itl3 = yaws_api:htmlize(damn_correct(T)),
+			   [<<
+			     "<input type='radio' name='", Randname/binary, "' id='q", Itl1/binary,
+			     "a", Itl2/binary, "' />", Itl3/binary, "<br />"
+			     >>|Acc]
+		   end, [], enumerate(Qs)))].
 
 enumerate(E) ->
     enumerate(E, 1).

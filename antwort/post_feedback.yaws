@@ -1,0 +1,21 @@
+<erl>
+
+-define(SENDMAIL_BIN, "/var/qmail/bin/qmail-inject").
+
+out(A) ->
+    {ok, Feedback} = yaws_api:postvar(A, "feedback"),
+
+    F = fun() ->
+		Emailaddress = "hc@hcesperer.org",
+		Emailbody = Feedback,
+		P = open_port({spawn_executable, ?SENDMAIL_BIN},
+			      [stream, binary,
+			       {args, ["--", Emailaddress]}]),
+		port_command(P, list_to_binary("Subject: Zensus-Generator-Feedback\nFrom: Yaws webserver <hc-yaws@hcesperer.org>\nTo: hc@hcesperer.org\n\n" ++ Emailbody ++ "\n")),
+		receive _Any -> ok after 60000 -> error end
+	end,
+    spawn(F),
+
+    {html, "E-Mail abgeschickt; danke fuer Ihre Anfrage/Ihr Feedback!"}.
+
+</erl>

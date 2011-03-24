@@ -1,0 +1,6 @@
+<erl>
+
+out(A) ->
+    {redirect, "http://generator.zensus11.de/zensus.yaws"}.
+
+</erl>
