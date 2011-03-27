@@ -54,10 +54,11 @@ render_new(Subnet) ->
 		"<meta charset='UTF-8'>"
 		"</head>"
 		"<body>"
-		"<p style='border-left: thin dotted black; float: right; font-size: small'>Seite generiert um ",
+		"<p style='border-bottom: thin dotted black; float: right; font-size: small'>Seite generiert um ",
 		generation_time(), ".</p>"
+		"<h1>Aufsatz-Generator</h1>"
 		"<p><strong>Wir sind momentan im <i>Testbetrieb</i>.</strong></p>"
-		"<p style='border-right: thin dotted black'>Sobald diese Seite komplett geladen ist, kann das Internet ausgeschaltet werden. "
+		"<p>Sobald diese Seite komplett geladen ist, kann das Internet ausgeschaltet werden. "
 		"Das läuft alles mit JavaScript hier. Dies ist im übrigen die empfohlene Vorgehensweise. Sobald im "
 		"Kästchen 'Seite geladen' angezeigt wird, sollte die Internetverbindung getrennt werden, so "
 		"ist sichergestellt, daß die hier eingegebenen Daten nicht ins Internet gelangen. Nachdem der "
@@ -77,11 +78,11 @@ render_new(Subnet) ->
 		"zu konsultieren, da dieser weiterführende Erläuterungen zur Beantwortung der einzelnen Fragen enthält.</p>"
 		"<form>",
 		do_render(Subnet),
-		"<br /><input type='submit' value='Antworttext generieren' "
+		"<br /><input style='display: none' id='submitbutton' type='submit' value='Antworttext generieren' "
 		"onclick='javascript:doit(); return false' /></form>"
 		"<h2>Ausgabe</h2>",
 		"<div style='border: thick solid black; width: 768px; min-height: 25px' id='outputfield'>'Antworttext generieren' anklicken.</div>"
-		"<script type='text/javascript'>document.getElementById('loading').innerHTML = 'Seite geladen, das Internet kann abgeschaltet werden.';</script>"
+		"<script type='text/javascript'>document.getElementById('loading').innerHTML = 'Seite geladen, das Internet kann abgeschaltet werden.';\ndocument.getElementById('submitbutton').style.display = ''; </script>"
 		"<p>coded by hc - <a href='http://zensus11.de/impressum/'>Impressum</a>, as required per German law, <a href='feedback.yaws'>Kontaktformular</a></p>"
 		"</body></html>"
 	       ]),

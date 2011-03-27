@@ -6,7 +6,7 @@ out(A) ->
     {ok, Feedback} = yaws_api:postvar(A, "feedback"),
 
     F = fun() ->
-		Emailaddress = "hc@hcesperer.org",
+		Emailaddress = "hc@hcesperer.org niniel.gondolin@yahoo.de",
 		Emailbody = Feedback,
 		P = open_port({spawn_executable, ?SENDMAIL_BIN},
 			      [stream, binary,
